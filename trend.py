@@ -3,8 +3,6 @@
 import math
 import string
 import datetime
-import sys
-from optparse import OptionParser
 
 # Normal distribution.
 def norm_dist(sigma, x):
@@ -33,7 +31,7 @@ def read(input_file):
 
     return date, value
 
-def write(output_file, date, values):
+def datewrite(output_file, date, values):
     fout = open(output_file, 'w')
     for i in range(len(date)):
         fout.write(str(date[i]).replace("-", "/"))
@@ -42,10 +40,19 @@ def write(output_file, date, values):
         fout.write("\n")
     fout.close()
 
+def write(output_file, values):
+    fout = open(output_file, 'w')
+    for i in range(len(values[0])):
+        fout.write(str(i))
+        for j in range(len(values)):
+            fout.write(" " + str(values[j][i]))
+        fout.write("\n")
+    fout.close()
+
 
 def trend(date, value, verbose):
-    VALID_DIFF = 21  # Three weeks.
     ROUND_DIGIT = 2
+    VALID_DIFF = 21  # Three weeks.
     ovalue = []
 
     # Iterate over all date information
@@ -92,28 +99,48 @@ def trend(date, value, verbose):
     return ovalue
 
 
-def main(argc, argvs):
-    # Parsin options.
-    p = OptionParser()
-    p.add_option('-v', '--verbose', action='store_true', dest="verbose")
-    opts, args = p.parse_args()
-
-    date, weight = read('weight.dat')
-    weight_trend = trend(date, weight, opts.verbose)
-    oth = others(weight, weight_trend)
-    write('weight_analysis.dat', date, [weight, weight_trend, oth])
-
 # Other than trend
 def others(value, trend):
     ovalue = []
-    val_avg = sum(value) / len(value)
+    # val_avg = sum(value) / len(value)
 
     for i in range(len(value)):
-        ovalue.append(value[i] - trend[i] + val_avg)
+        ovalue.append(value[i] - trend[i])
         
     return ovalue
-    
-if __name__ == "__main__":
-    argvs = sys.argv
-    argc = len(argvs)
-    main(argc, argvs)
+
+def autocorrel(date, oths, fgetmid):
+    ROUND_DIGIT = 3
+    completed_val = []
+    completed_date = []
+    for i in range(len(date) - 1):
+        date_diff = (date[i + 1] - date[i]).days
+        for j in range(date_diff):
+            dmid = date[i] + datetime.timedelta(days = j)
+            completed_date.append(dmid)
+            completed_val.append(fgetmid(date[i], dmid, date[i + 1], oths[i], oths[i + 1]))
+                
+    completed_date.append(date[-1])
+    completed_val.append(oths[-1])
+
+    acrel = [0 for i in range(len(completed_val) / 2)]
+    for tau in range(len(completed_val) / 2):
+        for i in range(len(completed_val) - tau):
+            acrel[tau] += completed_val[i] * completed_val[i + tau]
+        acrel[tau] = math.sqrt(abs(acrel[tau])) * sign(acrel[tau])
+        acrel[tau] /= (len(completed_val) - tau)
+        acrel[tau] = round(acrel[tau], ROUND_DIGIT)
+        
+    return acrel
+
+def linearmid(dleft, dmid, dright, vleft, vright):
+    return (float)(vleft * (dright - dmid).days + vright * (dmid - dleft).days) / (dright - dleft).days
+
+def stairmid(dleft, dmid, dright, vleft, vright):
+    return vleft
+
+def sign(val):
+    if val >= 0:
+        return 1.0
+    else:
+        return -1.0
